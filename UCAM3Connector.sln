@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31410.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UCAM3Connector", "UCAM3Connector\UCAM3Connector.csproj", "{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C419F339-7992-4BCB-952F-86067557B534}
+	EndGlobalSection
+EndGlobal
