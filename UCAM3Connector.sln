@@ -1,25 +1,424 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31410.357
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UCAM3Connector", "UCAM3Connector\UCAM3Connector.csproj", "{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}"
-EndProject
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Any CPU = Debug|Any CPU
-		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FABB3C88-0848-49F8-B1D9-34FB4DE16DB4}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {C419F339-7992-4BCB-952F-86067557B534}
-	EndGlobalSection
-EndGlobal
+using System;
+using System.IO.Ports;
+using System.IO;
+using System.Threading;
+
+namespace UCAM3Connector
+{
+    class Program
+    {
+        static SerialPort port;
+        static byte[] Input = { };
+        static bool IsSync = false, IsInit = false;
+        static int N = 0;
+
+        private static void SendData(byte[] Instruction)
+        {
+            port.Write(Instruction, 0, Instruction.Length);            
+        }
+
+        private static void ResetCam()
+        {
+            int k = 0;
+            port.DiscardInBuffer();
+
+            SendData(new byte[] { 0xAA, 0x08, 0x00, 0x00, 0x00, 0x00 });
+
+            while(port.BytesToRead == 0 && k < 20)
+            {
+                Thread.Sleep(50);
+                k++;
+            }
+
+            if(k >= 20)
+            {
+                ResetCam();
+            }
+            else
+            {
+                Input = new byte[port.BytesToRead];
+                port.Read(Input, 0, port.BytesToRead);
+
+                if (Input.Length >= 2 && Input[0] == 0xAA && Input[1] == 0x0E)
+                {
+                    IsSync = false;
+                    IsInit = false;
+                    port.Close();
+                    Main();
+                }
+                else
+                {
+                    ResetCam();
+                }
+            }
+        }
+
+        private static void OpenPort(string Name, int baudRate, int dataBits)
+        {
+            port = new SerialPort(Name, baudRate, Parity.None, dataBits, StopBits.One);
+
+            if (!port.IsOpen)
+            {
+               port.Open();
+            }
+        }
+
+        private static void InitPort()
+        {
+            if (SerialPort.GetPortNames().Length == 1)
+            {
+                OpenPort(SerialPort.GetPortNames()[0], 57600, 8);
+            }
+            else
+            {
+                Console.Write("Enter port name: ");
+                string Name = Console.ReadLine();
+                OpenPort(Name, 57600, 8);
+            }
+
+            /*
+            Console.WriteLine("Aviable ports:");
+            foreach (string Port in SerialPort.GetPortNames())
+            {
+                Console.WriteLine(Port);
+            }
+            Console.WriteLine();
+
+            Console.WriteLine("Write 0 to auto connect with default settings(\"Port Name\", 57600, 8)");
+            if (Console.ReadLine() == "0")
+            {
+                if(SerialPort.GetPortNames().Length == 1)
+                {
+                    OpenPort(SerialPort.GetPortNames()[0], 57600, 8);
+                }
+                else
+                {
+                    Console.Write("Enter port name: ");
+                    string Name = Console.ReadLine();
+                    OpenPort(Name, 57600, 8);
+                }
+            }
+            else
+            {
+                const int BaudRateC = 57600, DataBitsC = 8;
+                int BaudRate, DataBits;
+
+                Console.WriteLine("Parity sets on none, Stop bits sets on one");
+                Console.Write("Enter port name: ");
+                string Name = Console.ReadLine();
+                Console.Write("Enter Baud rate(default = 57600): ");
+                if (!int.TryParse(Console.ReadLine(), out BaudRate))
+                {
+                    BaudRate = BaudRateC;
+                }
+                Console.Write("Enter Data bits(default = 8): ");
+                if (!int.TryParse(Console.ReadLine(), out DataBits))
+                {
+                    DataBits = DataBitsC;
+                }
+
+
+                OpenPort(Name, BaudRate, DataBits);
+            }
+            */
+        }
+
+        private static void InitPicPort()
+        {
+            if (port.IsOpen)
+            {
+                int k = 0;
+                port.DiscardInBuffer();
+
+                while (port.BytesToRead == 0 && k < 10)
+                {
+                    SendData(new byte[] { 0xAA, 0x01, 0x00, 0x07, 0x00, 0x07 });
+                    Thread.Sleep(50);
+                    k++;
+                }
+
+                if (k >= 10)
+                {
+                    ResetCam();
+                }
+                else
+                {
+                    Input = new byte[port.BytesToRead];
+                    port.Read(Input, 0, port.BytesToRead);
+
+                    if (Input.Length >= 2 && Input[0] == 0xAA && Input[1] == 0x0E)
+                    {
+                        IsInit = true;
+                        Console.WriteLine("Initialized successfully!");
+                    }
+                    else
+                    {
+                        ResetCam();
+                    }
+                }
+            }
+        }
+
+        private static void SyncPort()
+        {
+            int k = 0;
+            port.DiscardInBuffer();
+
+            while(port.BytesToRead == 0 && k < 40)
+            {
+                SendData(new byte[] { 0xAA, 0x0D, 0x00, 0x00, 0x00, 0x00 });
+                Thread.Sleep(50);
+                k++;
+            }
+
+            if(k >= 40)
+            {
+                ResetCam();
+            }
+            else
+            {
+                Input = new byte[port.BytesToRead];
+                port.Read(Input, 0, port.BytesToRead);
+
+                if (Input.Length >= 2 && Input[0] == 0xAA && Input[1] == 0x0E)
+                {
+                    IsSync = true;
+                    SendData(new byte[] { 0xAA, 0x0E, 0x00, 0x00, 0x44, 0x00 });
+                    Console.WriteLine("Synced successfully!");
+                }
+                else
+                {
+                    ResetCam();
+                }
+
+                Thread.Sleep(5);
+                InitPicPort();
+            }
+        }
+
+        private static bool GetPucture(int n)
+        {
+            int Size = 0, PackNum = 0, k = 0;
+            byte[] ImageByte;
+            bool IsOk = true;
+
+            port.DiscardInBuffer();
+
+            SendData(new byte[] { 0xAA, 0x06, 0x08, 0xC8, 0x00, 0x00 }); //set package size
+
+            while (port.BytesToRead == 0 && k < 20)
+            {
+                Thread.Sleep(10);
+                k++;
+            }
+
+            if(k >= 20)
+            {
+                IsOk = false;
+            }
+            else
+            {
+                Input = new byte[port.BytesToRead];
+                port.Read(Input, 0, port.BytesToRead);
+
+                if (Input == null || (Input[0] != 0xAA && Input[1] != 0x0E))
+                {
+                    IsOk = false;
+                }
+                else
+                {
+                    port.DiscardInBuffer();
+
+                    SendData(new byte[] { 0xAA, 0x04, 0x05, 0x00, 0x00, 0x00 }); //get picture
+
+                    k = 0;
+                    while (port.BytesToRead == 0 && k < 20)
+                    {
+                        Thread.Sleep(5);
+                        k++;
+                    }
+
+                    if(k >= 20)
+                    {
+                        IsOk = false;
+                    }
+                    else
+                    {
+                        Input = new byte[port.BytesToRead];
+                        port.Read(Input, 0, port.BytesToRead);
+
+                        if (Input == null || (Input[0] != 0xAA && Input[1] != 0x0E))
+                        {
+                            IsOk = false;
+                        }
+                        else
+                        {
+                            k = 0;
+                            while (port.BytesToRead < 6 && k < 20)
+                            {
+                                Thread.Sleep(5);
+                                k++;
+                            }
+                            if (k >= 20)
+                            {
+                                IsOk = false;
+                            }
+                            else
+                            {
+                                Input = new byte[port.BytesToRead];
+                                port.Read(Input, 0, port.BytesToRead);
+                                if (Input.Length != 6)
+                                {
+                                    IsOk = false;
+                                }
+                                else
+                                {
+                                    Size = (Input[3] << 0) | (Input[4] << 8) | (Input[5] << 16);
+                                    PackNum = Size / 194;
+                                    if (Size % 194 != 0)
+                                    {
+                                        PackNum++;
+                                    }
+
+                                    ImageByte = new byte[Size];
+                                    if (Input[0] == 0xAA && Input[1] == 0x0A)
+                                    {
+                                        int i = 0;
+                                        while (i < PackNum && IsOk)
+                                        {
+                                            byte First = (byte)(i << 8);
+                                            byte Last = (byte)(i & 0xFF);
+
+                                            SendData(new byte[] { 0xAA, 0x0E, 0x00, 0x00, Last, First });
+
+                                            if (i != PackNum)
+                                            {
+                                                k = 0;
+                                                while (port.BytesToRead < 200 && k < 20)
+                                                {
+                                                    Thread.Sleep(5);
+                                                    k++;
+                                                }
+                                                if (k >= 100)
+                                                {
+                                                    IsOk = false;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                k = 0;
+                                                while (port.BytesToRead == 0 && k < 10)
+                                                {
+                                                    Thread.Sleep(50);
+                                                    k++;
+                                                }
+                                                if (k >= 10)
+                                                {
+                                                    IsOk = false;
+                                                }
+                                            }
+
+                                            if (IsOk)
+                                            {
+                                                Input = new byte[port.BytesToRead];
+                                                port.Read(Input, 0, port.BytesToRead);
+
+                                                for (int j = 4; j < Input.Length - 2; j++)
+                                                {
+                                                    ImageByte[(j - 4) + i * 194] = Input[j]; // за это сорри
+                                                }
+                                            }
+
+                                            i++;
+                                        } // end of while
+
+                                    }
+                                    else
+                                    {
+                                        IsOk = false;
+                                    }
+
+                                    if (IsOk)
+                                    {
+                                        SendData(new byte[] { 0xAA, 0x0E, 0x00, 0x00, 0xF0, 0xF0 });
+
+                                        Console.WriteLine("Final image size: " + ImageByte.Length.ToString());
+                                        Console.WriteLine("Calculated size: " + Size.ToString());
+                                        File.WriteAllBytes(@"C:\Users\ForseFire\Desktop\Photos\Image" + n.ToString() + ".jpeg", ImageByte);
+                                    }
+                                } // end of "does Ucam send a right snapshot picture command?"
+                            } // end of "does Ucam send a snapshot picture command?"
+                        } // end of "does Ucam send a correct ACK command?"
+                    } // end of "does "get picture" have a response from Ucam?"
+                } // end of "does Ucam send a correct ACK command?"
+            } // end of "does "set pack size" have a response from Ucam?"
+
+            return IsOk;
+        }
+
+        [STAThread]
+        static void Main()
+        {
+            string str;
+            bool IsContinue = true;
+
+            InitPort();
+            new Program();
+
+            Thread.Sleep(1000);
+
+            SyncPort();
+
+            Thread.Sleep(1000);
+
+            while (IsContinue && IsInit && IsSync)
+            {
+                Console.WriteLine("Seem all works right!\nType \"Get picture\" to start");
+                str = Console.ReadLine();
+
+                switch (str)
+                {
+                    case "STOP":
+                        port.Close();
+                        IsContinue = false;
+                        break;
+                    case "Get picture":
+                        bool IsGot = GetPucture(N);
+                        N++;
+                        if(IsGot)
+                        {
+                            Console.WriteLine("Sucsess!");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error! Picture cant be taken\nRecommend you to reset Ucam");
+                        }
+                        break;
+                    case "Reset":
+                        ResetCam();
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            if (port.IsOpen)
+            {
+                port.Close();
+            }
+        }
+
+        private Program()
+        {
+            if (port.IsOpen)
+            {
+                port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
+            }
+        }
+
+        private static void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+
+        }
+    } //end of class
+} //end of namespace
